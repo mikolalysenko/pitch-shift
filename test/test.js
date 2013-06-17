@@ -2,10 +2,12 @@
 
 var plotter = require("plotter").plot
 
+var fsize = 1024
+
 var source = new Float64Array(4000)
 var omega = 2.0 * Math.PI / 44100
 for(var i=0; i<source.length; ++i) {
-  source[i] = Math.cos(32*Math.sin(80 * omega * i))
+  source[i] = Math.sin(100 * omega * i)
 }
 
 plotter({
@@ -24,10 +26,12 @@ var tuner = autotune(function(data) {
   out_ptr += data.length
 }, function(t, pitch) {
   return 1.0
+}, {
+  frameSize: fsize
 })
 
-for(var in_ptr=0; in_ptr + 1024 < source.length; in_ptr +=1024) {
-  tuner(source.subarray(in_ptr, in_ptr+1024))
+for(var in_ptr=0; in_ptr + fsize < source.length; in_ptr += fsize) {
+  tuner(source.subarray(in_ptr, in_ptr+fsize))
 }
 
 plotter({
