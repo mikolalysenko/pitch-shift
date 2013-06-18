@@ -4,7 +4,7 @@ var queue = []
 var frame_size = 1024
 var hop_size = 256
 
-var autotune = require("../autotune.js")(function(data) {
+var pitchshift = require("../pitchshift.js")(function(data) {
   var buf = pool.mallocFloat32(data.length)
   buf.set(data)
   queue.push(buf)
@@ -28,7 +28,7 @@ var sineWave = master.createOscillator()
 
 var scriptNode = master.createScriptProcessor(frame_size, 1, 1)
 scriptNode.onaudioprocess = function(e){
-  autotune(e.inputBuffer.getChannelData(0))
+  pitchshift(e.inputBuffer.getChannelData(0))
   var out = e.outputBuffer.getChannelData(0)
   var q = queue[0]
   queue.shift()
@@ -39,3 +39,4 @@ scriptNode.onaudioprocess = function(e){
 sineWave.connect(scriptNode)
 scriptNode.connect(master.destination)
 sineWave.start(0)
+

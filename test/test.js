@@ -16,12 +16,12 @@ plotter({
   filename: "signal.pdf"
 })
 
-var autotune = require("../autotune.js")
+var pitchshift = require("../pitchshift.js")
 
 var out_ptr = 0
 var out_buf = new Float32Array(nsamples)
 
-var tuner = autotune(function(data) {
+var tuner = pitchshift(function(data) {
   out_buf.set(data, out_ptr)
   out_ptr += data.length
 }, function(t, pitch) {

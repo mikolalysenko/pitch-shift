@@ -5,8 +5,6 @@ var overlapAdd = require("overlap-add")
 var detectPitch = require("detect-pitch")
 var pool = require("typedarray-pool")
 
-var plotter = require("plotter").plot
-
 function createWindow(n) {
   var result = new Float32Array(n)
   for(var i=0; i<n; ++i) {
@@ -33,6 +31,7 @@ function normalizeWindow(w, hop_size) {
   pool.freeFloat32(scale)
 }
 
+//Applies window to signal
 function applyWindow(X, W, frame) {
   var i, n = frame.length
   for(i=0; i<n; ++i) {
@@ -71,7 +70,7 @@ function findMatch(x, start, step) {
   return best_i
 }
 
-function autotune(onData, onTune, options) {
+function pitchShift(onData, onTune, options) {
   options = options || {}
   
   var frame_size  = options.frameSize || 2048
@@ -101,7 +100,7 @@ function autotune(onData, onTune, options) {
   var addFrame = overlapAdd(frame_size, hop_size, onData)
   var delay = 0
   
-  function doAutotune(frame) {
+  function doPitchShift(frame) {
 
     //Apply window
     applyWindow(cur, a_window, frame)
@@ -133,6 +132,6 @@ function autotune(onData, onTune, options) {
     addFrame(cur)
   }
   
-  return frameHop(frame_size, hop_size, doAutotune, data_size)
+  return frameHop(frame_size, hop_size, doPitchShift, data_size)
 }
-module.exports = autotune
+module.exports = pitchShift

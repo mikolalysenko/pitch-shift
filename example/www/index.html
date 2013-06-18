@@ -1,0 +1,50 @@
+<html>
+<head>
+  <title>Pitch shifting demo</title>
+  <style type="text/css">
+    html, body { height: 100%; }
+    body > pre { display: none }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+    }
+    .centerDiv > h1 {
+      font-size: 80;
+      line-height: 0;
+      margin-left: 5%;
+    }
+    .centerDiv > h3 {
+      margin-left: 10%;
+    }
+    .centerDiv {
+      position: absolute;
+      bottom: 50%;
+      left: 0;
+      right: 0;
+      text-align: left;
+    }
+    .buttonDiv {
+      margin: 0 auto;
+      text-align: center;
+      background-color: teal;
+      padding: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class=centerDiv>
+    <h1>Pitch Shift Demo</h1>
+    <h3><a href=http://0fps.net>By Mikola Lysenko</a></h3>
+    <div class=buttonDiv>
+      <select>
+        <option>Sine Wave</option>
+      </select>
+      <input type="button" value="Play"/>
+    </div>
+  </div>
+
+  <script type="text/javascript" src="bundle.js"></script>
+</body>
+</html>
