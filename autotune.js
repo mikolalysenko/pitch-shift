@@ -3,9 +3,6 @@
 var frameHop = require("frame-hop")
 var overlapAdd = require("overlap-add")
 var detectPitch = require("detect-pitch")
-var phaseAlign = require("phase-align")
-var ndarray = require("ndarray")
-var fft = require("ndarray-fft")
 var pool = require("typedarray-pool")
 
 var plotter = require("plotter").plot
@@ -77,8 +74,10 @@ function autotune(onData, onTune, options) {
   var addFrame = overlapAdd(frame_size, hop_size, onData)
   var delay = 0
   
-var prev = new Float32Array(frame_size)
-var COUNT = 0
+  /*
+  var prev = new Float32Array(frame_size)
+  var COUNT = 0
+  */
   
   function doAutotune(frame) {
     
@@ -93,20 +92,21 @@ var COUNT = 0
       period = (frame_size / pitch)|0
       fsize = (pitch|0) * (period|0)
     }
-    var scale_f = onTune(t / sample_rate, pitch * (sample_rate / frame_size))
+    var scale_f = onTune(t / sample_rate, pitch * sample_rate / frame_size)
     
     //Apply scaling
     scalePitch(cur, frame, fsize, scale_f, delay, s_window)
     delay = (delay + hop_size * scale_f  + 0.5 * period) % fsize
     t += hop_size
     
-    
+    /*
     plotter({
       data: { "cur": Array.prototype.slice.call(cur, 0, frame_size-hop_size),
               "prev": Array.prototype.slice.call(prev, hop_size, frame_size) },
       filename: "frame" + (COUNT++) + ".pdf"
     })
     prev.set(cur)
+    */
     
     //Add frame
     addFrame(cur)
