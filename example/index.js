@@ -29,7 +29,7 @@ function createProcessingNode(context) {
   //Create a script node
   var scriptNode = context.createScriptProcessor(frame_size, 1, 1)
   scriptNode.onaudioprocess = function(e){
-    pitchshift(e.inputBuffer.getChannelData(0))
+    shifter(e.inputBuffer.getChannelData(0))
     var out = e.outputBuffer.getChannelData(0)
     var q = queue[0]
     queue.shift()
@@ -50,11 +50,26 @@ domready(function() {
   
   var pausePlay = document.getElementById("pausePlay")
   var sourceSelect = document.getElementById("audioSource")
+  var playing = false
+  var curSource = null
   
   var dataSources = {
-    "oscillator": context.createOscillator(),
-    
+    "oscillator": context.createOscillator()
   }
   
-  
+  pausePlay.addEventListener("click", function() {
+    if(playing) {
+      curSource.stop(0)
+      curSource.disconnect()
+      curSource = null
+      playing = false
+      pausePlay.value = "Play"
+    } else {
+      curSource = dataSources[sourceSelect.value]
+      curSource.connect(shifter)
+      curSource.start(0)
+      playing = true
+      pausePlay.value = "Pause"
+    }
+  })
 })
