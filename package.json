@@ -1,0 +1,47 @@
+{
+  "name": "pitch-shift",
+  "version": "0.0.0",
+  "description": "Variable rate controllable audio pitch shifter",
+  "main": "pitchshift.js",
+  "directories": {
+    "example": "example",
+    "test": "test"
+  },
+  "dependencies": {
+    "detect-pitch": "~0.1.2",
+    "frame-hop": "~0.0.0",
+    "overlap-add": "~0.0.0",
+    "typedarray-pool": "~0.1.1"
+  },
+  "devDependencies": {
+    "plotter": "~0.4.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mikolalysenko/pitch-shift.git"
+  },
+  "keywords": [
+    "pitch",
+    "shift",
+    "detect",
+    "autotune",
+    "audio",
+    "digital",
+    "signal",
+    "processing",
+    "frequency",
+    "time",
+    "scale",
+    "stretch"
+  ],
+  "author": "Mikola Lysenko",
+  "license": "MIT",
+  "readmeFilename": "README.md",
+  "gitHead": "c570d7124dd796d1518db743123c21600b09015f",
+  "bugs": {
+    "url": "https://github.com/mikolalysenko/pitch-shift/issues"
+  }
+}

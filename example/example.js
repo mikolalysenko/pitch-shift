@@ -1,42 +1,60 @@
+var domready = require("domready")
 var pool = require("typedarray-pool")
-var queue = []
+var pitchShift = require("../pitchshift.js")
 
-var frame_size = 1024
-var hop_size = 256
 
-var pitchshift = require("../pitchshift.js")(function(data) {
-  var buf = pool.mallocFloat32(data.length)
-  buf.set(data)
-  queue.push(buf)
-}, function(t, pitch) {
-  return 0.1 * Math.round(t) + 0.1
-}, {
-  frameSize: frame_size,
-  hopSize: hop_size
-})
+function createProcessingNode(context) {
+  var queue = []
+  var frame_size = 1024
+  var hop_size = 256
+  
+  var shifter = pitchShift(function(data) {
+    var buf = pool.mallocFloat32(data.length)
+    buf.set(data)
+    queue.push(buf)
+  }, function(t, pitch) {
+    return 0.1 * (Math.round(t) % 15) + 0.5
+  }, {
+    frameSize: frame_size,
+    hopSize: hop_size
+  })
 
-//Enque some garbage to buffer stuff
-autotune(new Float32Array(frame_size))
-autotune(new Float32Array(frame_size))
-autotune(new Float32Array(frame_size))
-autotune(new Float32Array(frame_size))
-autotune(new Float32Array(frame_size))
-
-//Init web audio
-var master = new webkitAudioContext()
-var sineWave = master.createOscillator()
-
-var scriptNode = master.createScriptProcessor(frame_size, 1, 1)
-scriptNode.onaudioprocess = function(e){
-  pitchshift(e.inputBuffer.getChannelData(0))
-  var out = e.outputBuffer.getChannelData(0)
-  var q = queue[0]
-  queue.shift()
-  out.set(q)
-  pool.freeFloat32(q)
+  //Enque some garbage to buffer stuff
+  shifter(new Float32Array(frame_size))
+  shifter(new Float32Array(frame_size))
+  shifter(new Float32Array(frame_size))
+  shifter(new Float32Array(frame_size))
+  shifter(new Float32Array(frame_size))
+  
+  //Create a script node
+  var scriptNode = context.createScriptProcessor(frame_size, 1, 1)
+  scriptNode.onaudioprocess = function(e){
+    pitchshift(e.inputBuffer.getChannelData(0))
+    var out = e.outputBuffer.getChannelData(0)
+    var q = queue[0]
+    queue.shift()
+    out.set(q)
+    pool.freeFloat32(q)
+  }
+  
+  return scriptNode
 }
 
-sineWave.connect(scriptNode)
-scriptNode.connect(master.destination)
-sineWave.start(0)
 
+domready(function() {
+
+  //Init web audio
+  var context = new webkitAudioContext()
+  var shifter = createProcessingNode(context)
+  shifter.connect(context.destination)
+  
+  var pausePlay = document.getElementById("pausePlay")
+  var sourceSelect = document.getElementById("audioSource")
+  
+  var dataSources = {
+    "oscillator": context.createOscillator(),
+    
+  }
+  
+  
+})
