@@ -86,10 +86,11 @@ function loadFiles(list) {
   }
 }
 
-loadFiles(["gettysburg.mp3"])
+loadFiles(["gettysburg.mp3", "guitar_c.mp3"])
 
 var prettyNames = {
   "oscillator": "Sine Wave",
+  "guitar_c.mp3": "Guitar C Chord",
   "gettysburg.mp3": "Gettysburg Address"
 }
 
