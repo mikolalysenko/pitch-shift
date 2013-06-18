@@ -29,6 +29,20 @@
       text-align: center;
       background-color: teal;
       padding: 15px;
+      color: white;
+    }
+    .noWebAudio {
+      background-color: red;
+      color: white;
+      transform:rotate(37deg);
+      -ms-transform:rotate(37deg);
+      -webkit-transform:rotate(37deg);
+      position: absolute;
+      width: 100%;
+      font-size: 90;
+      top: 50%;
+      text-align: center;
+      display: none;
     }
   </style>
 </head>
@@ -42,7 +56,13 @@
         <option value="oscillator">Sine Wave</option>
       </select>
       <input id=pausePlay type="button" value="Play"/>
+      <label for=applyShift>Apply shift</label>
+      <input id=applyShift type="checkbox" checked />
     </div>
+  </div>
+  
+  <div class=noWebAudio>
+    Requires WebAudio!
   </div>
 
   <script type="text/javascript" src="bundle.js"></script>

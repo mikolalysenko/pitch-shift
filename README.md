@@ -32,3 +32,7 @@ Creates a pitch shifting function
 
 ## Credits
 (c) 2013 Mikola Lysenko. MIT License
+
+
+Gettysburg adress reading by Britton Rea.  Recording obtained from the Internet archive.  http://archive.org/details/GettysburgAddress
+
