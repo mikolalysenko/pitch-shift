@@ -40,7 +40,18 @@ function createProcessingNode(context) {
   return scriptNode
 }
 
-var context = new webkitAudioContext()
+var context
+if (typeof AudioContext !== "undefined") {
+  context = new AudioContext();
+} else if (typeof webkitAudioContext !== "undefined") {
+  context = new webkitAudioContext();
+} else {
+  domready(function() {
+    document.querySelector(".noWebAudio").style.display = "block"
+  })
+  throw new Error("No WebAudio!")
+}
+
 var ondatasource = function(url, buf) {}
 
 var dataSources = {
