@@ -7,7 +7,6 @@ var pool = require("typedarray-pool")
 
 var plotter = require("plotter").plot
 
-
 function createWindow(n) {
   var result = new Float32Array(n)
   for(var i=0; i<n; ++i) {
@@ -65,10 +64,10 @@ function autotune(onData, onTune, options) {
   var s_window    = options.synthesisWindow || createWindow(frame_size)
   var threshold   = options.freqThreshold || 0.9
   var start_bin   = options.minPeriod || Math.min(hop_size, Math.max(16, Math.round(sample_rate / 400)))|0
-  var period_acc  = options.periodResolution || 1
+  var period_acc  = options.pitchResolution || 1
   
   var detect_params = {
-    threshold:  threshold,
+    threshold: threshold,
     start_bin: start_bin
   }
   
@@ -102,9 +101,9 @@ function autotune(onData, onTune, options) {
     
     //Apply scaling
     scalePitch(cur, frame, fsize, scale_f, delay, s_window)
-    delay = (delay - hop_size * (1.0 - scale_f)) % fsize
     
     //Update counters
+    delay = (delay - hop_size * (1.0 - scale_f)) % fsize
     t += hop_size
     
     //Add frame
