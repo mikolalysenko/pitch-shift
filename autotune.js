@@ -7,6 +7,7 @@ var pool = require("typedarray-pool")
 
 var plotter = require("plotter").plot
 
+
 function createWindow(n) {
   var result = new Float32Array(n)
   for(var i=0; i<n; ++i) {
@@ -46,8 +47,9 @@ function scalePitch(out, x, nx, scale, shift, w) {
     var t  = i * scale + shift
     var ti = Math.floor(t)|0
     var tf = t - ti
-    var x1 = x[(nx+ti)%nx]
-    var x2 = x[(nx+ti+1)%nx]
+    ti = ((ti % nx) + nx) % nx
+    var x1 = x[ti]
+    var x2 = x[(ti+1)%nx]
     out[i] = w[i] * ((1.0 - tf) * x1 + tf * x2)
   }
 }
@@ -55,12 +57,21 @@ function scalePitch(out, x, nx, scale, shift, w) {
 function autotune(onData, onTune, options) {
   options = options || {}
   
-  var frame_size  = options.frameSize || 1024
+  var frame_size  = options.frameSize || 2048
   var hop_size    = options.hopSize || (frame_size>>>2)
   var sample_rate = options.sampleRate || 44100
   var data_size   = options.maxDataSize || undefined
   var a_window    = options.analysisWindow || createWindow(frame_size)
   var s_window    = options.synthesisWindow || createWindow(frame_size)
+  var threshold   = options.freqThreshold || 0.9
+  var start_bin   = options.minPeriod || Math.min(hop_size, Math.max(16, Math.round(sample_rate / 400)))|0
+  var period_acc  = options.periodResolution || 1
+  
+  var detect_params = {
+    threshold:  threshold,
+    start_bin: start_bin
+  }
+  
   var t           = 0
   var cur         = new Float32Array(frame_size)
   
@@ -74,39 +85,27 @@ function autotune(onData, onTune, options) {
   var addFrame = overlapAdd(frame_size, hop_size, onData)
   var delay = 0
   
-  /*
-  var prev = new Float32Array(frame_size)
-  var COUNT = 0
-  */
-  
   function doAutotune(frame) {
-    
+
     //Apply window
     applyWindow(cur, a_window, frame)
     
     //Compute pitch, period and sample rate
-    var pitch = detectPitch(cur)
+    var period = (Math.round(detectPitch(cur, detect_params) / period_acc)*period_acc)|0
     var fsize = frame_size
-    var period = frame_size
-    if(pitch > 0) {
-      period = (frame_size / pitch)|0
-      fsize = (pitch|0) * (period|0)
+    var pitch = 0.0
+    if(period > 0) {
+      pitch = sample_rate / period
+      fsize = (Math.floor(frame_size / period) * period)|0
     }
-    var scale_f = onTune(t / sample_rate, pitch * sample_rate / frame_size)
+    var scale_f = onTune(t / sample_rate, pitch)
     
     //Apply scaling
     scalePitch(cur, frame, fsize, scale_f, delay, s_window)
-    delay = (delay + hop_size * scale_f  + 0.5 * period) % fsize
-    t += hop_size
+    delay = (delay - hop_size * (1.0 - scale_f)) % fsize
     
-    /*
-    plotter({
-      data: { "cur": Array.prototype.slice.call(cur, 0, frame_size-hop_size),
-              "prev": Array.prototype.slice.call(prev, hop_size, frame_size) },
-      filename: "frame" + (COUNT++) + ".pdf"
-    })
-    prev.set(cur)
-    */
+    //Update counters
+    t += hop_size
     
     //Add frame
     addFrame(cur)
