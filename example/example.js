@@ -1,15 +1,15 @@
 var pool = require("typedarray-pool")
 var queue = []
 
-var frame_size = 2048
-var hop_size = 512
+var frame_size = 1024
+var hop_size = 256
 
 var autotune = require("../autotune.js")(function(data) {
   var buf = pool.mallocFloat32(data.length)
   buf.set(data)
   queue.push(buf)
 }, function(t, pitch) {
-  return 0.1 * Math.round(t) + 0.11
+  return 0.1 * Math.round(t) + 0.1
 }, {
   frameSize: frame_size,
   hopSize: hop_size

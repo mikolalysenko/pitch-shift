@@ -40,17 +40,35 @@ function applyWindow(X, W, frame) {
   }
 }
 
-function scalePitch(out, x, nx, scale, shift, w) {
+//Performs the actual pitch scaling
+function scalePitch(out, x, nx, period, scale, shift, w) {
   var no = out.length
   for(var i=0; i<no; ++i) {
     var t  = i * scale + shift
     var ti = Math.floor(t)|0
     var tf = t - ti
-    ti = ((ti % nx) + nx) % nx
-    var x1 = x[ti]
+    var x1 = x[ti%nx]
     var x2 = x[(ti+1)%nx]
-    out[i] = w[i] * ((1.0 - tf) * x1 + tf * x2)
+    var v = (1.0 - tf) * x1 + tf * x2
+    out[i] = w[i] * v
   }
+}
+
+//Match start/end points of signal to avoid popping artefacts
+function findMatch(x, start, step) {
+  var a = x[0], b = x[step], c = x[2*step]
+  var n = x.length
+  var best_d = 8
+  var best_i = start
+  for(var i=start; i<n-2*step; ++i) {
+    var s = x[i]-a, t = x[i+step]-b, u=x[i+2*step]-c
+    var d = s*s + t*t + u*u
+    if( d < best_d ) {
+      best_d = d
+      best_i = i
+    }
+  }
+  return best_i
 }
 
 function autotune(onData, onTune, options) {
@@ -64,7 +82,6 @@ function autotune(onData, onTune, options) {
   var s_window    = options.synthesisWindow || createWindow(frame_size)
   var threshold   = options.freqThreshold || 0.9
   var start_bin   = options.minPeriod || Math.min(hop_size, Math.max(16, Math.round(sample_rate / 400)))|0
-  var period_acc  = options.pitchResolution || 1
   
   var detect_params = {
     threshold: threshold,
@@ -90,20 +107,25 @@ function autotune(onData, onTune, options) {
     applyWindow(cur, a_window, frame)
     
     //Compute pitch, period and sample rate
-    var period = (Math.round(detectPitch(cur, detect_params) / period_acc)*period_acc)|0
-    var fsize = frame_size
+    var period = detectPitch(cur, detect_params)
     var pitch = 0.0
     if(period > 0) {
       pitch = sample_rate / period
-      fsize = (Math.floor(frame_size / period) * period)|0
     }
     var scale_f = onTune(t / sample_rate, pitch)
     
+    //Calculate frame size
+    var fsize = frame_size>>1
+    if(period > 0) {
+      fsize = (Math.max(1, Math.floor(0.5*frame_size/period)) * period)|0
+    }    
+    fsize = findMatch(frame, fsize|0, Math.max(1, period/20)|0)
+    
     //Apply scaling
-    scalePitch(cur, frame, fsize, scale_f, delay, s_window)
+    scalePitch(cur, frame, fsize, period|0, scale_f, delay, s_window)
     
     //Update counters
-    delay = (delay - hop_size * (1.0 - scale_f)) % fsize
+    delay = (fsize + (delay - hop_size * (1.0 - scale_f)) % fsize) % fsize
     t += hop_size
     
     //Add frame
