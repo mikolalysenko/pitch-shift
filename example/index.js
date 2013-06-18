@@ -13,6 +13,7 @@ function createProcessingNode(context) {
     buf.set(data)
     queue.push(buf)
   }, function(t, pitch) {
+    console.log(t, pitch)
     return 0.1 * (Math.round(t) % 15) + 0.5
   }, {
     frameSize: frame_size,

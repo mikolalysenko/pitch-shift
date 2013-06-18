@@ -70,6 +70,21 @@ function findMatch(x, start, step) {
   return best_i
 }
 
+function roundToNearestDivisor(n, period) {
+  var lo = period, hi = period
+  while(2*lo > period) {
+    if(n % lo === 0) {
+      return lo
+    }
+    --lo
+    if(n % hi === 0) {
+      return hi
+    }
+    ++hi
+  }
+  return period
+}
+
 function pitchShift(onData, onTune, options) {
   options = options || {}
   
@@ -80,7 +95,8 @@ function pitchShift(onData, onTune, options) {
   var a_window    = options.analysisWindow || createWindow(frame_size)
   var s_window    = options.synthesisWindow || createWindow(frame_size)
   var threshold   = options.freqThreshold || 0.9
-  var start_bin   = options.minPeriod || Math.min(hop_size, Math.max(16, Math.round(sample_rate / 400)))|0
+  var start_bin   = options.minPeriod || Math.max(16, Math.floor(sample_rate / 1000))|0
+  var scale_threshold = options.harmonicScale || 0.2
   
   var detect_params = {
     threshold: threshold,
@@ -99,6 +115,7 @@ function pitchShift(onData, onTune, options) {
   
   var addFrame = overlapAdd(frame_size, hop_size, onData)
   var delay = 0
+  var pfreq = 0.0
   
   function doPitchShift(frame) {
 
@@ -107,18 +124,29 @@ function pitchShift(onData, onTune, options) {
     
     //Compute pitch, period and sample rate
     var period = detectPitch(cur, detect_params)
-    var pitch = 0.0
-    if(period > 0) {
-      pitch = sample_rate / period
-    }
-    var scale_f = onTune(t / sample_rate, pitch)
     
     //Calculate frame size
     var fsize = frame_size>>1
     if(period > 0) {
       fsize = (Math.max(1, Math.floor(0.5*frame_size/period)) * period)|0
-    }    
+    }
     fsize = findMatch(frame, fsize|0, Math.max(1, period/20)|0)
+ 
+    //Compute pitch
+    var pitch = 0.0
+    if(period > 0) {
+      pitch = sample_rate / period
+    }
+    for(var k=10; k>0; --k) {
+      var s = +(1<<k)
+      if(Math.abs(s*pfreq - pitch) < scale_threshold * pitch) {
+        pitch = pitch / s
+      }
+    }
+    pfreq = pitch
+    
+    //Apply scale factor
+    var scale_f = onTune(t / sample_rate, pitch)
     
     //Apply scaling
     delay = ((delay % fsize) + fsize) % fsize
