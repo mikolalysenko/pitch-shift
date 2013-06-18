@@ -122,10 +122,11 @@ function autotune(onData, onTune, options) {
     fsize = findMatch(frame, fsize|0, Math.max(1, period/20)|0)
     
     //Apply scaling
+    delay = ((delay % fsize) + fsize) % fsize
     scalePitch(cur, frame, fsize, period|0, scale_f, delay, s_window)
     
     //Update counters
-    delay = (fsize + (delay - hop_size * (1.0 - scale_f)) % fsize) % fsize
+    delay += hop_size * (scale_f - 1.0)
     t += hop_size
     
     //Add frame
