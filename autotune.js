@@ -3,19 +3,37 @@
 var frameHop = require("frame-hop")
 var overlapAdd = require("overlap-add")
 var detectPitch = require("detect-pitch")
+var phaseAlign = require("phase-align")
 var ndarray = require("ndarray")
 var fft = require("ndarray-fft")
+var pool = require("typedarray-pool")
 
 var plotter = require("plotter").plot
 
-
-function createWindow(n, alpha) {
+function createWindow(n) {
   var result = new Float32Array(n)
   for(var i=0; i<n; ++i) {
     var t = i / (n-1)
-    result[i] = 0.5 * alpha * (1.0 - Math.cos(2.0 * Math.PI * t))
+    result[i] = 0.5 * (1.0 - Math.cos(2.0*Math.PI * t))
   }
   return result
+}
+
+function normalizeWindow(w, hop_size) {
+  var n = w.length
+  var nh = (n / hop_size)|0
+  var scale = pool.mallocFloat32(n)
+  for(var i=0; i<n; ++i) {
+    var s = 0.0
+    for(var j=0; j<nh; ++j) {
+      s += w[(i + j*hop_size)%n]
+    }
+    scale[i] = s
+  }
+  for(var i=0; i<n; ++i) {
+    w[i] /= scale[i]
+  }
+  pool.freeFloat32(scale)
 }
 
 function applyWindow(X, W, frame) {
@@ -25,113 +43,73 @@ function applyWindow(X, W, frame) {
   }
 }
 
-function zero(X) {
-  var i, n = X.length
-  for(i=0; i<n; ++i) {
-    X[i] = 0.0
-  }
-}
-
-
-function convertToPolar(x, y, n2) {
-  var i, a, b, c, m
-  for(i=0; i<n2; ++i) {
-    a = x[i]
-    b = y[i]
-    m = a*a + b*b
-    if(m < 1e-6) {
-      m = 0.0
-      c = 0.0
-    } else {
-      m = Math.sqrt(m)
-      c = Math.atan2(b, a)
-    }
-    x[i] = m
-    y[i] = c
-  }
-}
-
-//Do nothing for now...
-function modifyPitch(x, y, n, stretch) {
-}
-
-//Reconstruct value
-function convertToCart(x, y, n2) {
-  var i, n = x.length, r, t
-  for(i=0; i<n2; ++i) {
-    r = x[i]
-    t = y[i]
-    x[i] = r * Math.cos(t)
-    y[i] = r * Math.sin(t)
-    if(i > 0) {
-      x[n-i] =  x[i]
-      y[n-i] = -y[i]
-    }
+function scalePitch(out, x, nx, scale, shift, w) {
+  var no = out.length
+  for(var i=0; i<no; ++i) {
+    var t  = i * scale + shift
+    var ti = Math.floor(t)|0
+    var tf = t - ti
+    var x1 = x[(nx+ti)%nx]
+    var x2 = x[(nx+ti+1)%nx]
+    out[i] = w[i] * ((1.0 - tf) * x1 + tf * x2)
   }
 }
 
 function autotune(onData, onTune, options) {
   options = options || {}
-  onTune = onTune
   
   var frame_size  = options.frameSize || 1024
   var hop_size    = options.hopSize || (frame_size>>>2)
   var sample_rate = options.sampleRate || 44100
   var data_size   = options.maxDataSize || undefined
-  var ftwindow    = options.analysisWindow || createWindow(frame_size, 1.0)
-  var iftwindow   = options.synthesisWindow || createWindow(frame_size, 1.0 )
+  var a_window    = options.analysisWindow || createWindow(frame_size)
+  var s_window    = options.synthesisWindow || createWindow(frame_size)
   var t           = 0
-  var x           = new Float32Array(frame_size)
-  var y           = new Float32Array(frame_size)
+  var cur         = new Float32Array(frame_size)
   
-  var n2          = Math.ceil(frame_size/2)|0
-  var n_phase     = new Float32Array(n2)
-  var p_phase     = new Float32Array(n2)
-  var phase       = new Float32Array(n2)
+  if(frame_size % hop_size !== 0) {
+    throw new Error("Hop size must divide frame size")
+  }
   
-  var ndx = ndarray(x)
-  var ndy = ndarray(y)
-
-  var omega = 2.0 * Math.PI  * hop_size / frame_size
-
+  //Normalize synthesis window
+  normalizeWindow(s_window, hop_size)
+  
   var addFrame = overlapAdd(frame_size, hop_size, onData)
+  var delay = 0
   
-  var count = 0
+var prev = new Float32Array(frame_size)
+var COUNT = 0
   
   function doAutotune(frame) {
+    
     //Apply window
-    applyWindow(x, ftwindow, frame)
+    applyWindow(cur, a_window, frame)
     
-    //Compute amount to shift pitch by
-    //var npitch = onTune(t / sample_rate, detectPitch(x))
-    //t += hop_size
+    //Compute pitch, period and sample rate
+    var pitch = detectPitch(cur)
+    var fsize = frame_size
+    var period = frame_size
+    if(pitch > 0) {
+      period = (frame_size / pitch)|0
+      fsize = (pitch|0) * (period|0)
+    }
+    var scale_f = onTune(t / sample_rate, pitch * (sample_rate / frame_size))
     
-    //Zero out y component
-    zero(y)
-
-    plotter({
-      data: Array.prototype.slice.call(x),
-      filename: "xin"+count+".pdf"
-    })
+    //Apply scaling
+    scalePitch(cur, frame, fsize, scale_f, delay, s_window)
+    delay = (delay + hop_size * scale_f  + 0.5 * period) % fsize
+    t += hop_size
     
-    //Analysis:  Compute FFT and convert to polar coordinates
-    fft(1, ndx, ndy)
-    convertToPolar(x, y, phase, n_phase, p_phase, omega)
-    
-    
-    //Synthesis: Convert back to cartesian and invert FFT
-    convertToCart(x, y, phase, omega, n2)
-    fft(-1, ndx, ndy)
     
     plotter({
-      data: Array.prototype.slice.call(x),
-      filename: "xout"+count+".pdf"
+      data: { "cur": Array.prototype.slice.call(cur, 0, frame_size-hop_size),
+              "prev": Array.prototype.slice.call(prev, hop_size, frame_size) },
+      filename: "frame" + (COUNT++) + ".pdf"
     })
+    prev.set(cur)
     
-    ++count
-    
-    applyWindow(x, iftwindow, x)
-    addFrame(x)
+    //Add frame
+    addFrame(cur)
   }
   
   return frameHop(frame_size, hop_size, doAutotune, data_size)

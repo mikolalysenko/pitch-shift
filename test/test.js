@@ -3,11 +3,12 @@
 var plotter = require("plotter").plot
 
 var fsize = 1024
+var nsamples = 10000
 
-var source = new Float64Array(4000)
-var omega = 2.0 * Math.PI / 44100
+var source = new Float64Array(nsamples)
+var omega = 2.0 * Math.PI / fsize
 for(var i=0; i<source.length; ++i) {
-  source[i] = Math.sin(100 * omega * i)
+  source[i] = Math.sin(10 * omega * i)
 }
 
 plotter({
@@ -18,14 +19,14 @@ plotter({
 var autotune = require("../autotune.js")
 
 var out_ptr = 0
-var out_buf = new Float32Array(4000)
+var out_buf = new Float32Array(nsamples)
 
 var tuner = autotune(function(data) {
-  console.log("here", Array.prototype.slice.call(data))
   out_buf.set(data, out_ptr)
   out_ptr += data.length
 }, function(t, pitch) {
-  return 1.0
+  console.log(t)
+  return 0.37 * Math.round(20*t) + 0.21
 }, {
   frameSize: fsize
 })
