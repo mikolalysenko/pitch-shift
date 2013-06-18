@@ -87,10 +87,11 @@ function loadFiles(list) {
   }
 }
 
-loadFiles(["gettysburg.mp3"])
+loadFiles(["gettysburg.mp3", "guitar_c.mp3"])
 
 var prettyNames = {
   "oscillator": "Sine Wave",
+  "guitar_c.mp3": "Guitar C Chord",
   "gettysburg.mp3": "Gettysburg Address"
 }
 
@@ -362,7 +363,7 @@ function pitchShift(onData, onTune, options) {
 }
 module.exports = pitchShift
 
-},{"frame-hop":5,"overlap-add":6,"detect-pitch":7,"typedarray-pool":4}],5:[function(require,module,exports){
+},{"detect-pitch":5,"frame-hop":6,"overlap-add":7,"typedarray-pool":4}],6:[function(require,module,exports){
 "use strict"
 
 // Slices a stream of frames into a stream of overlapping windows
@@ -403,7 +404,7 @@ function createHopStream(frame_size, hop_size, onFrame, max_data_size) {
 
 module.exports = createHopStream
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict"
 
 function overlapAdd(frame_size, hop_size, onFrame) {
@@ -1221,7 +1222,7 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],7:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 "use strict"
 
 var bits = require("bit-twiddle")
@@ -1323,7 +1324,7 @@ function detectPitch(signal, options) {
   return period
 }
 module.exports = detectPitch
-},{"bit-twiddle":10,"ndarray-ops":11,"typedarray-pool":4,"ndarray":12,"ndarray-fft":13}],12:[function(require,module,exports){
+},{"bit-twiddle":10,"ndarray-ops":11,"ndarray":12,"typedarray-pool":4,"ndarray-fft":13}],12:[function(require,module,exports){
 "use strict"
 
 var tools = require("./lib/tools.js")
@@ -1841,7 +1842,84 @@ function compile(user_args) {
 module.exports = compile
 
 })()
-},{"./lib/shim.js":17,"./lib/parser.js":18}],11:[function(require,module,exports){
+},{"./lib/parser.js":17,"./lib/shim.js":18}],13:[function(require,module,exports){
+"use strict"
+
+var ops = require("ndarray-ops")
+var cwise = require("cwise")
+var ndarray = require("ndarray")
+var fftm = require("./lib/fft-matrix.js")
+var pool = require("typedarray-pool")
+
+function ndfft(dir, x, y) {
+  var shape = x.shape
+    , d = shape.length
+    , size = 1
+    , stride = new Array(d)
+    , pad = 0
+    , i, j
+  for(i=d-1; i>=0; --i) {
+    stride[i] = size
+    size *= shape[i]
+    pad = Math.max(pad, fftm.scratchMemory(shape[i]))
+    if(x.shape[i] !== y.shape[i]) {
+      throw new Error("Shape mismatch, real and imaginary arrays must have same size")
+    }
+  }
+  var buffer = pool.malloc(4 * size + pad, "double")
+  var x1 = ndarray(buffer, shape.slice(0), stride, 0)
+    , y1 = ndarray(buffer, shape.slice(0), stride.slice(0), size)
+    , x2 = ndarray(buffer, shape.slice(0), stride.slice(0), 2*size)
+    , y2 = ndarray(buffer, shape.slice(0), stride.slice(0), 3*size)
+    , tmp, n, s1, s2
+    , scratch_ptr = 4 * size
+  
+  //Copy into x1/y1
+  ops.assign(x1, x)
+  ops.assign(y1, y)
+  
+  for(i=d-1; i>=0; --i) {
+    fftm(dir, size/shape[i], shape[i], buffer, x1.offset, y1.offset, scratch_ptr)
+    if(i === 0) {
+      break
+    }
+    
+    //Compute new stride for x2/y2
+    n = 1
+    s1 = x2.stride
+    s2 = y2.stride
+    for(j=i-1; j<d; ++j) {
+      s2[j] = s1[j] = n
+      n *= shape[j]
+    }
+    for(j=i-2; j>=0; --j) {
+      s2[j] = s1[j] = n
+      n *= shape[j]
+    }
+    
+    //Transpose
+    ops.assign(x2, x1)
+    ops.assign(y2, y1)
+    
+    //Swap buffers
+    tmp = x1
+    x1 = x2
+    x2 = tmp
+    tmp = y1
+    y1 = y2
+    y2 = tmp
+  }
+  
+  //Copy result back into x
+  ops.assign(x, x1)
+  ops.assign(y, y1)
+  
+  pool.free(buffer)
+}
+
+module.exports = ndfft
+
+},{"./lib/fft-matrix.js":19,"ndarray-ops":20,"cwise":21,"typedarray-pool":22,"ndarray":12}],11:[function(require,module,exports){
 var cwise = require("cwise")
 var ndarray = require("ndarray")
 
@@ -2261,84 +2339,7 @@ exports.clone = function(array) {
   return exports.assign(result, array)
 }
 
-},{"cwise":16,"ndarray":12}],13:[function(require,module,exports){
-"use strict"
-
-var ops = require("ndarray-ops")
-var cwise = require("cwise")
-var ndarray = require("ndarray")
-var fftm = require("./lib/fft-matrix.js")
-var pool = require("typedarray-pool")
-
-function ndfft(dir, x, y) {
-  var shape = x.shape
-    , d = shape.length
-    , size = 1
-    , stride = new Array(d)
-    , pad = 0
-    , i, j
-  for(i=d-1; i>=0; --i) {
-    stride[i] = size
-    size *= shape[i]
-    pad = Math.max(pad, fftm.scratchMemory(shape[i]))
-    if(x.shape[i] !== y.shape[i]) {
-      throw new Error("Shape mismatch, real and imaginary arrays must have same size")
-    }
-  }
-  var buffer = pool.malloc(4 * size + pad, "double")
-  var x1 = ndarray(buffer, shape.slice(0), stride, 0)
-    , y1 = ndarray(buffer, shape.slice(0), stride.slice(0), size)
-    , x2 = ndarray(buffer, shape.slice(0), stride.slice(0), 2*size)
-    , y2 = ndarray(buffer, shape.slice(0), stride.slice(0), 3*size)
-    , tmp, n, s1, s2
-    , scratch_ptr = 4 * size
-  
-  //Copy into x1/y1
-  ops.assign(x1, x)
-  ops.assign(y1, y)
-  
-  for(i=d-1; i>=0; --i) {
-    fftm(dir, size/shape[i], shape[i], buffer, x1.offset, y1.offset, scratch_ptr)
-    if(i === 0) {
-      break
-    }
-    
-    //Compute new stride for x2/y2
-    n = 1
-    s1 = x2.stride
-    s2 = y2.stride
-    for(j=i-1; j<d; ++j) {
-      s2[j] = s1[j] = n
-      n *= shape[j]
-    }
-    for(j=i-2; j>=0; --j) {
-      s2[j] = s1[j] = n
-      n *= shape[j]
-    }
-    
-    //Transpose
-    ops.assign(x2, x1)
-    ops.assign(y2, y1)
-    
-    //Swap buffers
-    tmp = x1
-    x1 = x2
-    x2 = tmp
-    tmp = y1
-    y1 = y2
-    y2 = tmp
-  }
-  
-  //Copy result back into x
-  ops.assign(x, x1)
-  ops.assign(y, y1)
-  
-  pool.free(buffer)
-}
-
-module.exports = ndfft
-
-},{"./lib/fft-matrix.js":19,"ndarray-ops":20,"cwise":21,"typedarray-pool":22,"ndarray":12}],21:[function(require,module,exports){
+},{"cwise":16,"ndarray":12}],21:[function(require,module,exports){
 (function(){"use strict"
 
 var Parser = require("./lib/parser.js")
@@ -2424,7 +2425,7 @@ function compile(user_args) {
 module.exports = compile
 
 })()
-},{"./lib/parser.js":23,"./lib/shim.js":24}],17:[function(require,module,exports){
+},{"./lib/parser.js":23,"./lib/shim.js":24}],18:[function(require,module,exports){
 "use strict"
 
 var generate = require("./generate.js")
@@ -2965,7 +2966,109 @@ matched_loop:
 }
 
 module.exports = generate
-},{}],26:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
+"use strict"
+
+var generate = require("./generate.js")
+
+//Reuse stack across all shims
+var STACK = new Int32Array(1024)
+
+function Shim(procedure) {
+  this.memoized = {}
+  this.procedure = procedure
+}
+
+Shim.prototype.checkShape = function(a, b) {
+  if(a.length !== b.length) {
+    throw new Error("Shape mismatch")
+  }
+  for(var i=a.length-1; i>=0; --i) {
+    if(a[i] !== b[i]) {
+      throw new Error("Shape mismatch")
+    }
+  }
+}
+
+Shim.prototype.getStack = function(size) {
+  if(size < STACK.length) {
+    return STACK
+  }
+  STACK = new Int32Array(size)
+  return STACK
+}
+
+function compare1st(a,b) { return a[0] - b[0]; }
+
+Shim.prototype.getOrder = function(stride) {
+  var zipped = new Array(stride.length)
+  for(var i=0; i<stride.length; ++i) {
+    zipped[i] = [Math.abs(stride[i]), i]
+  }
+  zipped.sort(compare1st)
+  var unzipped = new Array(stride.length)
+  for(var i=0; i<stride.length; ++i) {
+    unzipped[i] = zipped[i][1]
+  }
+  return unzipped
+}
+
+Shim.prototype.getProc = function(orders) {
+  var proc_name = orders.join("|")
+    , proc = this.memoized[proc_name]
+  if(!proc) {
+    proc = generate(orders, this.procedure)
+    this.memoized[proc_name] = proc
+  }
+  return proc
+}
+
+function createShim(shim_args, procedure) {
+  var code = ["\"use strict\""], i
+  //Check shapes
+  for(i=1; i<procedure.numArrayArgs; ++i) {
+    code.push("this.checkShape(array0.shape,array"+i+".shape)")
+  }
+  //Load/lazily generate procedure based on array ordering
+  code.push("var proc = this.getProc([")
+  for(i=0; i<procedure.numArrayArgs; ++i) {
+    code.push((i>0 ? "," : "") + "this.getOrder(array"+i+".stride)")
+  }
+  code.push("])")
+  //Call procedure
+  if(procedure.hasReturn) {
+    code.push("return proc(")
+  } else {
+    code.push("proc(")
+  }
+  code.push("this.getStack(" + procedure.numArrayArgs + "*(array0.shape.length*32)), array0.shape.slice(0)")
+  //Bind array arguments
+  for(i=0; i<procedure.numArrayArgs; ++i) {
+    code.push(",array" + i + ".data")
+    code.push(",array" + i + ".offset")
+    code.push(",array" + i + ".stride")
+  }
+  //Bind scalar arguments
+  for(var i=0; i<procedure.numScalarArgs; ++i) {
+    code.push(",scalar"+i)
+  }
+  code.push(")")
+  if(!procedure.hasReturn) {
+    code.push("return array0")
+  }
+  //Create the shim
+  shim_args.push(code.join("\n"))
+  var result = Function.apply(null, shim_args)
+  if(procedure.printCode) {
+    console.log("Generated shim:", result + "")
+  }
+  return result.bind(new Shim(procedure))
+}
+
+module.exports = createShim
+
+
+},{"./generate.js":27}],26:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -3171,109 +3274,7 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],24:[function(require,module,exports){
-"use strict"
-
-var generate = require("./generate.js")
-
-//Reuse stack across all shims
-var STACK = new Int32Array(1024)
-
-function Shim(procedure) {
-  this.memoized = {}
-  this.procedure = procedure
-}
-
-Shim.prototype.checkShape = function(a, b) {
-  if(a.length !== b.length) {
-    throw new Error("Shape mismatch")
-  }
-  for(var i=a.length-1; i>=0; --i) {
-    if(a[i] !== b[i]) {
-      throw new Error("Shape mismatch")
-    }
-  }
-}
-
-Shim.prototype.getStack = function(size) {
-  if(size < STACK.length) {
-    return STACK
-  }
-  STACK = new Int32Array(size)
-  return STACK
-}
-
-function compare1st(a,b) { return a[0] - b[0]; }
-
-Shim.prototype.getOrder = function(stride) {
-  var zipped = new Array(stride.length)
-  for(var i=0; i<stride.length; ++i) {
-    zipped[i] = [Math.abs(stride[i]), i]
-  }
-  zipped.sort(compare1st)
-  var unzipped = new Array(stride.length)
-  for(var i=0; i<stride.length; ++i) {
-    unzipped[i] = zipped[i][1]
-  }
-  return unzipped
-}
-
-Shim.prototype.getProc = function(orders) {
-  var proc_name = orders.join("|")
-    , proc = this.memoized[proc_name]
-  if(!proc) {
-    proc = generate(orders, this.procedure)
-    this.memoized[proc_name] = proc
-  }
-  return proc
-}
-
-function createShim(shim_args, procedure) {
-  var code = ["\"use strict\""], i
-  //Check shapes
-  for(i=1; i<procedure.numArrayArgs; ++i) {
-    code.push("this.checkShape(array0.shape,array"+i+".shape)")
-  }
-  //Load/lazily generate procedure based on array ordering
-  code.push("var proc = this.getProc([")
-  for(i=0; i<procedure.numArrayArgs; ++i) {
-    code.push((i>0 ? "," : "") + "this.getOrder(array"+i+".stride)")
-  }
-  code.push("])")
-  //Call procedure
-  if(procedure.hasReturn) {
-    code.push("return proc(")
-  } else {
-    code.push("proc(")
-  }
-  code.push("this.getStack(" + procedure.numArrayArgs + "*(array0.shape.length*32)), array0.shape.slice(0)")
-  //Bind array arguments
-  for(i=0; i<procedure.numArrayArgs; ++i) {
-    code.push(",array" + i + ".data")
-    code.push(",array" + i + ".offset")
-    code.push(",array" + i + ".stride")
-  }
-  //Bind scalar arguments
-  for(var i=0; i<procedure.numScalarArgs; ++i) {
-    code.push(",scalar"+i)
-  }
-  code.push(")")
-  if(!procedure.hasReturn) {
-    code.push("return array0")
-  }
-  //Create the shim
-  shim_args.push(code.join("\n"))
-  var result = Function.apply(null, shim_args)
-  if(procedure.printCode) {
-    console.log("Generated shim:", result + "")
-  }
-  return result.bind(new Shim(procedure))
-}
-
-module.exports = createShim
-
-
-},{"./generate.js":27}],28:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 "use strict"
 
 function dupe_array(count, value, i) {
@@ -3726,7 +3727,7 @@ matched_loop:
 }
 
 module.exports = generate
-},{}],18:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 (function(){"use strict"
 
 var falafel = require("falafel")
